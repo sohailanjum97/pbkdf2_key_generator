@@ -1,0 +1,46 @@
+#!/bin/bash
+
+pbkdf2_with_custom_salt() {
+    password="$1"
+    salt="$2"
+    iterations="$3"
+    key_length="$4"
+
+    # Perform PBKDF2 iterations using the HMAC-SHA256 hash
+    hash=$(printf "%s" "$password" | openssl dgst -sha256 -hmac "$salt" -binary | xxd -p)
+
+    for ((i=1; i<$iterations; i++)); do
+        hash=$(printf "%s" "$hash" | xxd -r -p | openssl dgst -sha256 -mac HMAC -macopt hexkey:"$password" -binary | xxd -p)
+    done
+
+    # Extract the key_length bytes from the final hash
+    derived_key=$(echo "$hash" | xxd -r -p | head -c "$key_length")
+
+    echo "$derived_key" | xxd -p
+}
+
+# Example usage
+echo "Enter Product No: "
+read -r product_no
+echo "Product No: $product_no"
+
+echo "Enter IMEI Number: "
+read -r imei_number
+echo "IMEI Number: $imei_number"
+
+timestamp=$(date +%s) # Get the current timestamp
+echo "Time Stamp: $timestamp"
+
+# Concatenate the three values to use as the salt
+salt="${product_no}${imei_number}${timestamp}"
+
+iterations=30000      # Number of iterations (adjust based on your security requirements)
+key_length=64         # Desired key length in bytes (adjust based on your needs)
+
+echo "Enter the password: "
+read -r password
+
+# Derive the key using PBKDF2 with the custom salt
+derived_key=$(pbkdf2_with_custom_salt "$password" "$salt" "$iterations" "$key_length")
+
+echo "Derived Key (hex): $derived_key"
